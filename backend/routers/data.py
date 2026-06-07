@@ -211,6 +211,15 @@ def _sanitize_payload(value):
     return value
 
 
+def _live_data_json_bytes(payload: dict) -> bytes:
+    """Serialize dashboard payloads with the same defensive orjson options everywhere."""
+    return orjson.dumps(
+        _sanitize_payload(payload),
+        default=str,
+        option=orjson.OPT_NON_STR_KEYS,
+    )
+
+
 def _bbox_filter(items: list, s: float, w: float, n: float, e: float,
                  lat_key: str = "lat", lng_key: str = "lng") -> list:
     pad_lat = (n - s) * 0.2
@@ -561,11 +570,7 @@ async def live_data(request: Request):
 
     payload = get_latest_data_deepcopy_snapshot()
     return Response(
-        content=orjson.dumps(
-            _sanitize_payload(payload),
-            default=str,
-            option=orjson.OPT_NON_STR_KEYS,
-        ),
+        content=_live_data_json_bytes(payload),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
@@ -663,7 +668,7 @@ async def bootstrap_critical(request: Request):
         "bootstrap_payload": True,
     }
     return Response(
-        content=orjson.dumps(_sanitize_payload(payload), default=str, option=orjson.OPT_NON_STR_KEYS),
+        content=_live_data_json_bytes(payload),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )
@@ -725,8 +730,11 @@ async def live_data_fast(
     # to the pre-#288 implementation.
     if _has_full_bbox(s, w, n, e):
         payload = _apply_bbox_to_payload(payload, _FAST_BBOX_HEAVY_KEYS, s, w, n, e)
-    return Response(content=orjson.dumps(_sanitize_payload(payload)), media_type="application/json",
-        headers={"ETag": etag, "Cache-Control": "no-cache"})
+    return Response(
+        content=_live_data_json_bytes(payload),
+        media_type="application/json",
+        headers={"ETag": etag, "Cache-Control": "no-cache"},
+    )
 
 
 @router.get("/api/live-data/slow")
@@ -800,7 +808,7 @@ async def live_data_slow(
     if _has_full_bbox(s, w, n, e):
         payload = _apply_bbox_to_payload(payload, _SLOW_BBOX_HEAVY_KEYS, s, w, n, e)
     return Response(
-        content=orjson.dumps(_sanitize_payload(payload), default=str, option=orjson.OPT_NON_STR_KEYS),
+        content=_live_data_json_bytes(payload),
         media_type="application/json",
         headers={"ETag": etag, "Cache-Control": "no-cache"},
     )

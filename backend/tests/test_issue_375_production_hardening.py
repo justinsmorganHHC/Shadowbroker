@@ -66,6 +66,24 @@ class TestLiveDataFullEndpoint:
         assert r2.status_code == 304
         assert r2.headers.get("etag") == etag
 
+    def test_live_data_fast_serializes_non_json_native_values(self, client):
+        from datetime import datetime, timezone
+
+        from services.fetchers import _store
+
+        with _store._data_lock:
+            prior = _store.latest_data.get("sigint")
+            _store.latest_data["sigint"] = [
+                {"source": "aprs", "observed": datetime(2026, 1, 1, tzinfo=timezone.utc)},
+            ]
+        try:
+            r = client.get("/api/live-data/fast")
+            assert r.status_code == 200
+            assert "2026-01-01" in r.text
+        finally:
+            with _store._data_lock:
+                _store.latest_data["sigint"] = prior
+
     def test_live_data_serializes_non_json_native_values(self, client):
         from datetime import datetime, timezone
 
