@@ -88,6 +88,19 @@ For compatibility with older snippets, `SHADOWBROKER_KEY` is also accepted by
 the client as the same HMAC signing secret. Prefer `SHADOWBROKER_HMAC_SECRET`
 for new setups.
 
+**Docker Compose:** host-side agents (`localhost:8000` from the Kali/macOS host)
+are not loopback inside the backend container — HMAC is required. After
+**Connect OpenClaw → Bootstrap → Reveal**, the secret is persisted under
+`data/openclaw.env` on the `backend_data` volume. Restart the backend once,
+then verify with:
+
+```bash
+python openclaw-skills/shadowbroker/verify_hmac.py
+```
+
+Hand-rolled signers must hash the **exact** POST bytes. Use compact JSON:
+`json.dumps(payload, separators=(",", ":"), sort_keys=True)`.
+
 ### SSE Stream (Preferred — Low-Latency Push)
 
 Open the SSE stream **first** and keep it open for the session.  The server pushes

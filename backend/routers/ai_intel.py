@@ -2988,6 +2988,12 @@ def _write_env_value(key: str, value: str) -> None:
     # Also set in current process env so Settings picks it up
     os.environ[key] = value
 
+    try:
+        from services.api_settings import persist_openclaw_env_value
+        persist_openclaw_env_value(key, value)
+    except Exception:
+        pass
+
 
 # ---------------------------------------------------------------------------
 # Agent Identity Management (Ed25519 keypair — used for mesh signing;

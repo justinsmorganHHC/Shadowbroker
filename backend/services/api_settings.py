@@ -19,6 +19,10 @@ if not DATA_DIR.is_absolute():
 OPERATOR_KEYS_ENV_PATH = Path(
     os.environ.get("SHADOWBROKER_OPERATOR_KEYS_ENV", str(DATA_DIR / "operator_api_keys.env"))
 )
+OPENCLAW_ENV_PATH = Path(
+    os.environ.get("SHADOWBROKER_OPENCLAW_ENV", str(DATA_DIR / "openclaw.env"))
+)
+OPENCLAW_PERSISTED_KEYS = frozenset({"OPENCLAW_HMAC_SECRET", "OPENCLAW_ACCESS_TIER"})
 _ENV_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
 
 # ---------------------------------------------------------------------------
@@ -285,6 +289,34 @@ def load_persisted_api_keys_into_environ() -> None:
             os.environ[key] = value
 
 
+def load_persisted_openclaw_into_environ() -> None:
+    """Load OpenClaw secrets from the data volume when env is unset/empty.
+
+    Docker Compose often injects ``OPENCLAW_HMAC_SECRET=`` as an empty string,
+    which blocks pydantic from reading backend/.env. Persisting bootstrap output
+    under ``data/openclaw.env`` (on the backend_data volume) keeps remote HMAC
+    working across container restarts (#424).
+    """
+    persisted = _parse_env_file(OPENCLAW_ENV_PATH)
+    if not persisted.get("OPENCLAW_HMAC_SECRET"):
+        # One-time migration from legacy backend/.env writes inside the image.
+        persisted = {**_parse_env_file(ENV_PATH), **persisted}
+
+    for key, value in persisted.items():
+        if key not in OPENCLAW_PERSISTED_KEYS:
+            continue
+        cleaned = str(value or "").strip()
+        if cleaned and not str(os.environ.get(key, "")).strip():
+            os.environ[key] = cleaned
+
+
+def persist_openclaw_env_value(key: str, value: str) -> None:
+    """Persist OpenClaw runtime settings to the data volume."""
+    if key not in OPENCLAW_PERSISTED_KEYS:
+        return
+    _write_env_values(OPENCLAW_ENV_PATH, {key: value})
+
+
 def get_env_path_info() -> dict:
     """Return absolute paths for the backend .env and .env.example template.
 
@@ -305,6 +337,10 @@ def get_env_path_info() -> dict:
         "operator_keys_env_path_exists": OPERATOR_KEYS_ENV_PATH.exists(),
         "operator_keys_env_path_writable": os.access(OPERATOR_KEYS_ENV_PATH.parent, os.W_OK)
             and (not OPERATOR_KEYS_ENV_PATH.exists() or os.access(OPERATOR_KEYS_ENV_PATH, os.W_OK)),
+        "openclaw_env_path": str(OPENCLAW_ENV_PATH.resolve()),
+        "openclaw_env_path_exists": OPENCLAW_ENV_PATH.exists(),
+        "openclaw_env_path_writable": os.access(OPENCLAW_ENV_PATH.parent, os.W_OK)
+            and (not OPENCLAW_ENV_PATH.exists() or os.access(OPENCLAW_ENV_PATH, os.W_OK)),
     }
 
 
